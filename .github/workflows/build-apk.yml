@@ -1,0 +1,47 @@
+name: APK derle
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Proje zip'ini ara ve ac
+        id: z
+        run: |
+          ZIP=$(ls *.zip 2>/dev/null | head -n1 || true)
+          if [ -z "$ZIP" ]; then
+            echo "Depoda zip yok, derleme atlandi."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          else
+            mkdir proj
+            unzip -q "$ZIP" -d proj
+            chmod +x proj/gradlew
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-java@v4
+        if: steps.z.outputs.found == 'true'
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Android lisanslarini kabul et
+        if: steps.z.outputs.found == 'true'
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
+      - name: APK derle
+        if: steps.z.outputs.found == 'true'
+        working-directory: proj
+        run: ./gradlew assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        if: steps.z.outputs.found == 'true'
+        with:
+          name: kartvizit-apk
+          path: proj/app/build/outputs/apk/debug/app-debug.apk
